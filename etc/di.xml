@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <type name="Magento\Framework\Console\CommandListInterface">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="yireo_deepltranslatecommands_translate_product" xsi:type="object">Yireo\DeeplTranslateCommands\Console\Command\TranslateProductCommand</item>
+                <item name="yireo_deepltranslatecommands_translate_products" xsi:type="object">Yireo\DeeplTranslateCommands\Console\Command\TranslateProductsCommand</item>
+                <item name="yireo_deepltranslatecommands_translate_category" xsi:type="object">Yireo\DeeplTranslateCommands\Console\Command\TranslateCategoryCommand</item>
+                <item name="yireo_deepltranslatecommands_translate_categories" xsi:type="object">Yireo\DeeplTranslateCommands\Console\Command\TranslateCategoriesCommand</item>
+                <item name="yireo_deepltranslatecommands_translate_cms_page" xsi:type="object">Yireo\DeeplTranslateCommands\Console\Command\TranslateCmsPageCommand</item>
+                <item name="yireo_deepltranslatecommands_translate_cms_pages" xsi:type="object">Yireo\DeeplTranslateCommands\Console\Command\TranslateCmsPagesCommand</item>
+                <item name="yireo_deepltranslatecommands_translate_cms_block" xsi:type="object">Yireo\DeeplTranslateCommands\Console\Command\TranslateCmsBlockCommand</item>
+                <item name="yireo_deepltranslatecommands_translate_cms_blocks" xsi:type="object">Yireo\DeeplTranslateCommands\Console\Command\TranslateCmsBlocksCommand</item>
+            </argument>
+        </arguments>
+    </type>
+</config>

@@ -1,0 +1,25 @@
+{
+    "name": "yireo/magento2-deepl-translate-commands",
+    "version": "1.0.0",
+    "description": "CLI commands to translate Magento 2 content (products, categories, CMS pages, CMS blocks) using the DeepL API",
+    "type": "magento2-module",
+    "require": {
+        "magento/framework": "^103.0",
+        "magento/module-catalog": "*",
+        "magento/module-cms": "*",
+        "magento/module-store": "*",
+        "magento/module-eav": "*",
+        "deeplcom/deepl-php": "^1.0"
+    },
+    "license": [
+        "OSL-3.0"
+    ],
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "Yireo\\DeeplTranslateCommands\\": ""
+        }
+    }
+}

@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+        <tab id="yireo" translate="label" sortOrder="400">
+            <label>Yireo</label>
+        </tab>
+        <section id="yireo_deepl_translate" translate="label" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
+            <label>DeepL Translate</label>
+            <tab>yireo</tab>
+            <resource>Yireo_DeeplTranslateCommands::config</resource>
+            <group id="general" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
+                <label>General</label>
+                <field id="enabled" translate="label" type="select" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Enabled</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="api_key" translate="label" type="obscure" sortOrder="20" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>DeepL API Key</label>
+                    <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
+                </field>
+            </group>
+            <group id="product" translate="label" type="text" sortOrder="20" showInDefault="1" showInWebsite="0" showInStore="0">
+                <label>Product Translation</label>
+                <field id="attributes" translate="label" type="multiselect" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Product Attributes to Translate</label>
+                    <source_model>Yireo\DeeplTranslateCommands\Source\ProductAttributes</source_model>
+                </field>
+            </group>
+            <group id="category" translate="label" type="text" sortOrder="30" showInDefault="1" showInWebsite="0" showInStore="0">
+                <label>Category Translation</label>
+                <field id="attributes" translate="label" type="multiselect" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Category Attributes to Translate</label>
+                    <source_model>Yireo\DeeplTranslateCommands\Source\CategoryAttributes</source_model>
+                </field>
+            </group>
+            <group id="cms_page" translate="label" type="text" sortOrder="40" showInDefault="1" showInWebsite="0" showInStore="0">
+                <label>CMS Page Translation</label>
+                <field id="fields" translate="label" type="multiselect" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>CMS Page Fields to Translate</label>
+                    <source_model>Yireo\DeeplTranslateCommands\Source\CmsPageFields</source_model>
+                </field>
+            </group>
+            <group id="cms_block" translate="label" type="text" sortOrder="50" showInDefault="1" showInWebsite="0" showInStore="0">
+                <label>CMS Block Translation</label>
+                <field id="fields" translate="label" type="multiselect" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>CMS Block Fields to Translate</label>
+                    <source_model>Yireo\DeeplTranslateCommands\Source\CmsBlockFields</source_model>
+                </field>
+            </group>
+        </section>
+    </system>
+</config>
