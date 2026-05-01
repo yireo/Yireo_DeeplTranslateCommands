@@ -28,7 +28,8 @@ class CmsPageTranslator
         string $sourceLanguage,
         string $targetLanguage,
         bool $dryRun,
-        OutputInterface $output
+        OutputInterface $output,
+        bool $force = false
     ): void {
         $fields = $this->config->getCmsPageFields();
         if (empty($fields)) {
@@ -73,6 +74,32 @@ class CmsPageTranslator
             $targetPage->setStoreId([$targetStoreId]);
             $targetPage->setIsActive($sourcePage->isActive());
             $targetPage->setPageLayout($sourcePage->getPageLayout());
+        }
+
+        if (!$force && !$dryRun && $existingPage) {
+            $fieldsToTranslate = [];
+            $skippedFields = [];
+            
+            foreach ($fields as $field) {
+                $targetValue = $targetPage->getData($field);
+                
+                if (empty(trim((string)$targetValue))) {
+                    $fieldsToTranslate[] = $field;
+                } else {
+                    $skippedFields[] = $field;
+                }
+            }
+            
+            foreach ($skippedFields as $field) {
+                $output->writeln(sprintf('  - %s: skipped (already translated)', $field));
+            }
+            
+            if (empty($fieldsToTranslate)) {
+                $output->writeln('  All fields already translated. Skipping CMS page.');
+                return;
+            }
+            
+            $fields = $fieldsToTranslate;
         }
 
         foreach ($fields as $field) {

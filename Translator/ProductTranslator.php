@@ -25,7 +25,8 @@ class ProductTranslator
         string $sourceLanguage,
         string $targetLanguage,
         bool $dryRun,
-        OutputInterface $output
+        OutputInterface $output,
+        bool $force = false
     ): void {
         $attributes = $this->config->getProductAttributes();
         if (empty($attributes)) {
@@ -60,6 +61,32 @@ class ProductTranslator
         }
 
         $storeProduct = $this->productRepository->getById($productId, false, $targetStoreId);
+
+        if (!$force && !$dryRun) {
+            $attributesToTranslate = [];
+            $skippedAttributes = [];
+            
+            foreach ($attributes as $attributeCode) {
+                $targetValue = $storeProduct->getData($attributeCode);
+                
+                if (empty(trim((string)$targetValue))) {
+                    $attributesToTranslate[] = $attributeCode;
+                } else {
+                    $skippedAttributes[] = $attributeCode;
+                }
+            }
+            
+            foreach ($skippedAttributes as $attributeCode) {
+                $output->writeln(sprintf('  - %s: skipped (already translated)', $attributeCode));
+            }
+            
+            if (empty($attributesToTranslate)) {
+                $output->writeln('  All attributes already translated. Skipping product.');
+                return;
+            }
+            
+            $attributes = $attributesToTranslate;
+        }
 
         foreach ($attributes as $attributeCode) {
             $attributeValue = $defaultProduct->getData($attributeCode);

@@ -39,6 +39,7 @@ class TranslateProductCommand extends Command
         $this->addArgument('id', InputArgument::REQUIRED, 'Product ID');
         $this->addArgument('store_code', InputArgument::REQUIRED, 'Target store view code');
         $this->addOption('dry-run', null, InputOption::VALUE_NONE, 'Show what would be translated without making changes');
+        $this->addOption('force', 'f', InputOption::VALUE_NONE, 'Force re-translation even if translations already exist');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -55,6 +56,7 @@ class TranslateProductCommand extends Command
 
         $productId = (int)$input->getArgument('id');
         $storeCode = (string)$input->getArgument('store_code');
+        $force = (bool)$input->getOption('force');
         $dryRun = (bool)$input->getOption('dry-run');
 
         try {
@@ -69,7 +71,7 @@ class TranslateProductCommand extends Command
 
             $output->writeln(sprintf('Source locale: %s (%s), Target locale: %s (%s)', $sourceLocale, $sourceLanguage, $targetLocale, $targetLanguage));
 
-            $this->productTranslator->translate($productId, $targetStoreId, $sourceLanguage, $targetLanguage, $dryRun, $output);
+            $this->productTranslator->translate($productId, $targetStoreId, $sourceLanguage, $targetLanguage, $dryRun, $output, $force);
 
             return Command::SUCCESS;
         } catch (\Exception $e) {

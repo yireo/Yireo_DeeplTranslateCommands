@@ -41,6 +41,7 @@ class TranslateProductsCommand extends Command
         $this->addArgument('store_code', InputArgument::REQUIRED, 'Target store view code');
         $this->addOption('dry-run', null, InputOption::VALUE_NONE, 'Show what would be translated without making changes');
         $this->addOption('batch-size', null, InputOption::VALUE_REQUIRED, 'Number of products to process per batch', '50');
+        $this->addOption('force', 'f', InputOption::VALUE_NONE, 'Force re-translation even if translations already exist');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -58,6 +59,7 @@ class TranslateProductsCommand extends Command
         $storeCode = (string)$input->getArgument('store_code');
         $dryRun = (bool)$input->getOption('dry-run');
         $batchSize = (int)$input->getOption('batch-size');
+        $force = (bool)$input->getOption('force');
 
         try {
             $store = $this->storeRepository->get($storeCode);
@@ -84,7 +86,7 @@ class TranslateProductsCommand extends Command
                 $output->writeln(sprintf('[%d/%d]', $current, $total));
 
                 try {
-                    $this->productTranslator->translate((int)$productId, $targetStoreId, $sourceLanguage, $targetLanguage, $dryRun, $output);
+                    $this->productTranslator->translate((int)$productId, $targetStoreId, $sourceLanguage, $targetLanguage, $dryRun, $output, $force);
                 } catch (\Exception $e) {
                     $output->writeln(sprintf('  <error>Failed: %s</error>', $e->getMessage()));
                     $failed++;

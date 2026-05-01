@@ -39,6 +39,7 @@ class TranslateCategoryCommand extends Command
         $this->addArgument('id', InputArgument::REQUIRED, 'Category ID');
         $this->addArgument('store_code', InputArgument::REQUIRED, 'Target store view code');
         $this->addOption('dry-run', null, InputOption::VALUE_NONE, 'Show what would be translated without making changes');
+        $this->addOption('force', 'f', InputOption::VALUE_NONE, 'Force re-translation even if translations already exist');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -56,6 +57,7 @@ class TranslateCategoryCommand extends Command
         $categoryId = (int)$input->getArgument('id');
         $storeCode = (string)$input->getArgument('store_code');
         $dryRun = (bool)$input->getOption('dry-run');
+        $force = (bool)$input->getOption('force');
 
         try {
             $store = $this->storeRepository->get($storeCode);
@@ -69,7 +71,7 @@ class TranslateCategoryCommand extends Command
 
             $output->writeln(sprintf('Source locale: %s (%s), Target locale: %s (%s)', $sourceLocale, $sourceLanguage, $targetLocale, $targetLanguage));
 
-            $this->categoryTranslator->translate($categoryId, $targetStoreId, $sourceLanguage, $targetLanguage, $dryRun, $output);
+            $this->categoryTranslator->translate($categoryId, $targetStoreId, $sourceLanguage, $targetLanguage, $dryRun, $output, $force);
 
             return Command::SUCCESS;
         } catch (\Exception $e) {

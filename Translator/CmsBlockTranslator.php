@@ -28,7 +28,8 @@ class CmsBlockTranslator
         string $sourceLanguage,
         string $targetLanguage,
         bool $dryRun,
-        OutputInterface $output
+        OutputInterface $output,
+        bool $force = false
     ): void {
         $fields = $this->config->getCmsBlockFields();
         if (empty($fields)) {
@@ -72,6 +73,32 @@ class CmsBlockTranslator
             $targetBlock->setIdentifier($identifier);
             $targetBlock->setStoreId([$targetStoreId]);
             $targetBlock->setIsActive($sourceBlock->isActive());
+        }
+
+        if (!$force && !$dryRun && $existingBlock) {
+            $fieldsToTranslate = [];
+            $skippedFields = [];
+            
+            foreach ($fields as $field) {
+                $targetValue = $targetBlock->getData($field);
+                
+                if (empty(trim((string)$targetValue))) {
+                    $fieldsToTranslate[] = $field;
+                } else {
+                    $skippedFields[] = $field;
+                }
+            }
+            
+            foreach ($skippedFields as $field) {
+                $output->writeln(sprintf('  - %s: skipped (already translated)', $field));
+            }
+            
+            if (empty($fieldsToTranslate)) {
+                $output->writeln('  All fields already translated. Skipping CMS block.');
+                return;
+            }
+            
+            $fields = $fieldsToTranslate;
         }
 
         foreach ($fields as $field) {

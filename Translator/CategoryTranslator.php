@@ -25,7 +25,8 @@ class CategoryTranslator
         string $sourceLanguage,
         string $targetLanguage,
         bool $dryRun,
-        OutputInterface $output
+        OutputInterface $output,
+        bool $force = false
     ): void {
         $attributes = $this->config->getCategoryAttributes();
         if (empty($attributes)) {
@@ -59,7 +60,34 @@ class CategoryTranslator
             return;
         }
 
+
         $storeCategory = $this->categoryRepository->get($categoryId, $targetStoreId);
+
+        if (!$force && !$dryRun) {
+            $attributesToTranslate = [];
+            $skippedAttributes = [];
+            
+            foreach ($attributes as $attributeCode) {
+                $targetValue = $storeCategory->getData($attributeCode);
+                
+                if (empty(trim((string)$targetValue))) {
+                    $attributesToTranslate[] = $attributeCode;
+                } else {
+                    $skippedAttributes[] = $attributeCode;
+                }
+            }
+            
+            foreach ($skippedAttributes as $attributeCode) {
+                $output->writeln(sprintf('  - %s: skipped (already translated)', $attributeCode));
+            }
+            
+            if (empty($attributesToTranslate)) {
+                $output->writeln('  All attributes already translated. Skipping category.');
+                return;
+            }
+            
+            $attributes = $attributesToTranslate;
+        }
 
         foreach ($attributes as $attributeCode) {
             $sourceValue = (string)$defaultCategory->getData($attributeCode);
