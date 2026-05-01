@@ -62,7 +62,13 @@ class ProductTranslator
         $storeProduct = $this->productRepository->getById($productId, false, $targetStoreId);
 
         foreach ($attributes as $attributeCode) {
-            $sourceValue = (string)$defaultProduct->getData($attributeCode);
+            $attributeValue = $defaultProduct->getData($attributeCode);
+            if (is_array($attributeValue)) {
+                $output->writeln(sprintf('  - %s is an array', $attributeCode));
+                continue;
+            }
+
+            $sourceValue = (string)$attributeValue;
             if (empty(trim($sourceValue))) {
                 continue;
             }
