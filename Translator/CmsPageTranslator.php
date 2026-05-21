@@ -50,12 +50,27 @@ class CmsPageTranslator
         ));
 
         if ($dryRun) {
+            $existingPage = $this->findExistingPage($identifier, $targetStoreId);
+            $existingTarget = $existingPage
+                ? $this->pageRepository->getById($existingPage->getId())
+                : null;
+
             $totalChars = 0;
             foreach ($fields as $field) {
                 $value = (string)$sourcePage->getData($field);
                 if (empty(trim($value))) {
                     continue;
                 }
+
+                if (!$force && $existingTarget) {
+                    $targetTrimmed = trim((string)$existingTarget->getData($field));
+                    $sourceTrimmed = trim($value);
+                    if ($targetTrimmed !== '' && $targetTrimmed !== $sourceTrimmed) {
+                        $output->writeln(sprintf('  - %s: skipped (already translated)', $field));
+                        continue;
+                    }
+                }
+
                 $charCount = mb_strlen($value);
                 $totalChars += $charCount;
                 $output->writeln(sprintf('  - %s: %d chars', $field, $charCount));
@@ -76,29 +91,33 @@ class CmsPageTranslator
             $targetPage->setPageLayout($sourcePage->getPageLayout());
         }
 
-        if (!$force && !$dryRun && $existingPage) {
+        if (!$force && $existingPage) {
             $fieldsToTranslate = [];
             $skippedFields = [];
-            
+
             foreach ($fields as $field) {
                 $targetValue = $targetPage->getData($field);
-                
-                if (empty(trim((string)$targetValue))) {
+                $sourceValue = $sourcePage->getData($field);
+
+                $targetTrimmed = trim((string)$targetValue);
+                $sourceTrimmed = trim((string)$sourceValue);
+
+                if ($targetTrimmed === '' || $targetTrimmed === $sourceTrimmed) {
                     $fieldsToTranslate[] = $field;
                 } else {
                     $skippedFields[] = $field;
                 }
             }
-            
+
             foreach ($skippedFields as $field) {
                 $output->writeln(sprintf('  - %s: skipped (already translated)', $field));
             }
-            
+
             if (empty($fieldsToTranslate)) {
                 $output->writeln('  All fields already translated. Skipping CMS page.');
                 return;
             }
-            
+
             $fields = $fieldsToTranslate;
         }
 

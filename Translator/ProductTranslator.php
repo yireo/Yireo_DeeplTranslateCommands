@@ -34,6 +34,7 @@ class ProductTranslator
         }
 
         $defaultProduct = $this->productRepository->getById($productId, false, Store::DEFAULT_STORE_ID);
+        $storeProduct = $this->productRepository->getById($productId, false, $targetStoreId);
         $productName = $defaultProduct->getName() ?: 'Unknown';
 
         $output->writeln(sprintf(
@@ -52,6 +53,16 @@ class ProductTranslator
                 if (empty(trim($value))) {
                     continue;
                 }
+
+                if (!$force) {
+                    $targetTrimmed = trim((string)$storeProduct->getData($attributeCode));
+                    $defaultTrimmed = trim($value);
+                    if ($targetTrimmed !== '' && $targetTrimmed !== $defaultTrimmed) {
+                        $output->writeln(sprintf('  - %s: skipped (already translated)', $attributeCode));
+                        continue;
+                    }
+                }
+
                 $charCount = mb_strlen($value);
                 $totalChars += $charCount;
                 $output->writeln(sprintf('  - %s: %d chars', $attributeCode, $charCount));
@@ -60,31 +71,33 @@ class ProductTranslator
             return;
         }
 
-        $storeProduct = $this->productRepository->getById($productId, false, $targetStoreId);
-
-        if (!$force && !$dryRun) {
+        if (!$force) {
             $attributesToTranslate = [];
             $skippedAttributes = [];
-            
+
             foreach ($attributes as $attributeCode) {
                 $targetValue = $storeProduct->getData($attributeCode);
-                
-                if (empty(trim((string)$targetValue))) {
+                $defaultValue = $defaultProduct->getData($attributeCode);
+
+                $targetTrimmed = trim((string)$targetValue);
+                $defaultTrimmed = trim((string)$defaultValue);
+
+                if ($targetTrimmed === '' || $targetTrimmed === $defaultTrimmed) {
                     $attributesToTranslate[] = $attributeCode;
                 } else {
                     $skippedAttributes[] = $attributeCode;
                 }
             }
-            
+
             foreach ($skippedAttributes as $attributeCode) {
                 $output->writeln(sprintf('  - %s: skipped (already translated)', $attributeCode));
             }
-            
+
             if (empty($attributesToTranslate)) {
                 $output->writeln('  All attributes already translated. Skipping product.');
                 return;
             }
-            
+
             $attributes = $attributesToTranslate;
         }
 

@@ -34,6 +34,7 @@ class CategoryTranslator
         }
 
         $defaultCategory = $this->categoryRepository->get($categoryId, Store::DEFAULT_STORE_ID);
+        $storeCategory = $this->categoryRepository->get($categoryId, $targetStoreId);
         $categoryName = $defaultCategory->getName() ?: 'Unknown';
 
         $output->writeln(sprintf(
@@ -52,6 +53,16 @@ class CategoryTranslator
                 if (empty(trim($value))) {
                     continue;
                 }
+
+                if (!$force) {
+                    $targetTrimmed = trim((string)$storeCategory->getData($attributeCode));
+                    $defaultTrimmed = trim($value);
+                    if ($targetTrimmed !== '' && $targetTrimmed !== $defaultTrimmed) {
+                        $output->writeln(sprintf('  - %s: skipped (already translated)', $attributeCode));
+                        continue;
+                    }
+                }
+
                 $charCount = mb_strlen($value);
                 $totalChars += $charCount;
                 $output->writeln(sprintf('  - %s: %d chars', $attributeCode, $charCount));
@@ -60,32 +71,33 @@ class CategoryTranslator
             return;
         }
 
-
-        $storeCategory = $this->categoryRepository->get($categoryId, $targetStoreId);
-
-        if (!$force && !$dryRun) {
+        if (!$force) {
             $attributesToTranslate = [];
             $skippedAttributes = [];
-            
+
             foreach ($attributes as $attributeCode) {
                 $targetValue = $storeCategory->getData($attributeCode);
-                
-                if (empty(trim((string)$targetValue))) {
+                $defaultValue = $defaultCategory->getData($attributeCode);
+
+                $targetTrimmed = trim((string)$targetValue);
+                $defaultTrimmed = trim((string)$defaultValue);
+
+                if ($targetTrimmed === '' || $targetTrimmed === $defaultTrimmed) {
                     $attributesToTranslate[] = $attributeCode;
                 } else {
                     $skippedAttributes[] = $attributeCode;
                 }
             }
-            
+
             foreach ($skippedAttributes as $attributeCode) {
                 $output->writeln(sprintf('  - %s: skipped (already translated)', $attributeCode));
             }
-            
+
             if (empty($attributesToTranslate)) {
                 $output->writeln('  All attributes already translated. Skipping category.');
                 return;
             }
-            
+
             $attributes = $attributesToTranslate;
         }
 
