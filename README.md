@@ -8,7 +8,7 @@
 <!-- badges.specs.end -->
 
 
-**This Magento 2 module is an add-on package to the LokiCheckout.**
+> This Magento 2 module adds various CLI commands to allow categoriies, products, CMS pages and CMS blocks to be translated via DeepL
 
 ### Installation
 Install this package via composer:
