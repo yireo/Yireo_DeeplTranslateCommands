@@ -28,10 +28,11 @@ bin/magento deepl:translate:products german --max-chars=100000
 ```
 
 Notes:
-- The target store view may not be the `admin` store view, and its locale must differ from the default locale.
+- The target store view may not be the `admin` store view, and its locale must differ from the default locale. A regional variant (for example `en_US` to `en_GB`) is allowed.
+- Translating needs at least two store views: with a single store view Magento saves store view values into the default scope.
 - Only store-view scoped attributes can be translated. `sku`, `url_key`, `url_path` and the layout attributes are never translated.
 - Only the translated attributes are saved for the target store view. Other attributes keep using the default values.
-- A translation is rejected when DeepL returns HTML tags, attributes or `{{directives}}` that are not in the source.
+- A translation is rejected when DeepL returns HTML tags, attributes, URL or style values or `{{directives}}` that are not in the source.
 - A CMS page or block is not overwritten when it is the source itself or is assigned to multiple store views.
 - The bulk commands ask for confirmation. Use `--no-interaction` (`-n`) in scripts. Use `--max-chars` to cap the DeepL quota used.
 ## Current status
