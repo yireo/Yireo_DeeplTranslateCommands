@@ -6,5 +6,7 @@
         "Magento_Cms",
         "Magento_Config",
         "Magento_Store"
-    ]
+    ],
+    "phpcs_severity": "8",
+    "phpstan_level": "1"
 }
