@@ -158,7 +158,7 @@ class ContentGuard
         foreach ($tags as $tag) {
             preg_match_all(self::URL_ATTRIBUTE_PATTERN, ' ' . $tag[2], $matches, PREG_SET_ORDER);
             foreach ($matches as $match) {
-                $value = html_entity_decode(trim($match[2], '"\''), ENT_QUOTES | ENT_HTML5);
+                $value = trim($match[2], '"\'');
                 $values[] = strtolower($match[1]) . '=' . $value;
             }
         }

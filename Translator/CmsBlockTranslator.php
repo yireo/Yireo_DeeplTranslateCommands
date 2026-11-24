@@ -47,7 +47,7 @@ class CmsBlockTranslator
             throw new LocalizedException(__('No CMS block fields configured for translation.'));
         }
 
-        $sourceBlock = $this->blockRepository->getById($blockId);
+        $sourceBlock = $this->blockRepository->getById((string)$blockId);
         if (!$sourceBlock instanceof Block) {
             throw new LocalizedException(__('Unable to load CMS block %1.', $blockId));
         }
@@ -145,7 +145,7 @@ class CmsBlockTranslator
             return null;
         }
 
-        $block = $this->blockRepository->getById((int)$item->getId());
+        $block = $this->blockRepository->getById((string)$item->getId());
 
         return $block instanceof Block ? $block : null;
     }
