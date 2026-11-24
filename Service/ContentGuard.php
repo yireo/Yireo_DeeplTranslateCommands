@@ -17,6 +17,8 @@ class ContentGuard
     private const TAG_PATTERN = '/<\s*\/?\s*([a-z][a-z0-9:-]*)([^>]*)>/i';
     private const ATTRIBUTE_PATTERN = '/([a-z_:@][-a-z0-9_:.@]*)\s*=/i';
     private const QUOTED_VALUE_PATTERN = '/"[^"]*"|\'[^\']*\'/';
+    private const URL_ATTRIBUTE_PATTERN =
+        '/\\s(href|src|srcset|action|formaction|poster|data|xlink:href|background|cite|style)\\s*=\\s*("[^"]*"|\'[^\']*\'|[^\\s>]+)/i';
     private const DANGEROUS_PATTERN = '/javascript\s*:|vbscript\s*:|data\s*:\s*text\/html/i';
 
     public function __construct(
@@ -96,6 +98,11 @@ class ContentGuard
             ));
         }
 
+        $newUrlValues = array_diff($this->getUrlAttributeValues($translation), $this->getUrlAttributeValues($source));
+        if (!empty($newUrlValues)) {
+            throw new UnsafeTranslationException(__('Translation changed URL or style attribute values.'));
+        }
+
         if (preg_match(self::DANGEROUS_PATTERN, $translation) && !preg_match(self::DANGEROUS_PATTERN, $source)) {
             throw new UnsafeTranslationException(__('Translation contains a script URL that is not in the source.'));
         }
@@ -139,6 +146,24 @@ class ContentGuard
             'tags' => array_values(array_unique($tags)),
             'attributes' => array_values(array_unique($attributes)),
         ];
+    }
+
+    /**
+     * @return string[]
+     */
+    private function getUrlAttributeValues(string $text): array
+    {
+        $values = [];
+        preg_match_all(self::TAG_PATTERN, $text, $tags, PREG_SET_ORDER);
+        foreach ($tags as $tag) {
+            preg_match_all(self::URL_ATTRIBUTE_PATTERN, ' ' . $tag[2], $matches, PREG_SET_ORDER);
+            foreach ($matches as $match) {
+                $value = html_entity_decode(trim($match[2], '"\''), ENT_QUOTES | ENT_HTML5);
+                $values[] = strtolower($match[1]) . '=' . $value;
+            }
+        }
+
+        return array_values(array_unique($values));
     }
 
     private function isValidHtml(string $html): bool

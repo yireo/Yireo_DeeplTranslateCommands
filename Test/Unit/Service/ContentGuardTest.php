@@ -93,6 +93,31 @@ class ContentGuardTest extends TestCase
         $this->createGuard()->assertSafe('<a href="/x">Hello</a>', '<a href="javascript:steal()">Hallo</a>', true);
     }
 
+    public function testRejectsChangedUrl(): void
+    {
+        $this->expectException(UnsafeTranslationException::class);
+        $this->createGuard()->assertSafe('<a href="/x">Hello</a>', '<a href="https://evil.example/">Hallo</a>', true);
+    }
+
+    public function testRejectsChangedStyle(): void
+    {
+        $this->expectException(UnsafeTranslationException::class);
+        $this->createGuard()->assertSafe(
+            '<p style="color:red">Hello</p>',
+            '<p style="background:url(//evil.example)">Hallo</p>',
+            true
+        );
+    }
+
+    public function testRejectsChangedUrlEvenWhenSourceIsInvalidHtml(): void
+    {
+        $validator = $this->createMock(WYSIWYGValidatorInterface::class);
+        $validator->method('validate')->willThrowException(new ValidationException(__('Restricted')));
+
+        $this->expectException(UnsafeTranslationException::class);
+        (new ContentGuard($validator))->assertSafe('<a href="/x">Hello</a>', '<a href=/y>Hallo</a>', true);
+    }
+
     public function testRejectsRestrictedHtmlWhenSourceIsValid(): void
     {
         $validator = $this->createMock(WYSIWYGValidatorInterface::class);
