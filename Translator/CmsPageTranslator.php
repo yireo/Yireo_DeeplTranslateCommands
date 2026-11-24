@@ -94,6 +94,10 @@ class CmsPageTranslator
         $targetPage = $existingPage;
         if ($targetPage === null) {
             $targetPage = $this->pageFactory->create();
+            if (!$targetPage instanceof Page) {
+                throw new LocalizedException(__('Unable to create CMS page.'));
+            }
+
             $targetPage->setIdentifier($identifier);
             $targetPage->setStoreId([$targetStoreId]);
             $targetPage->setIsActive($sourcePage->isActive());

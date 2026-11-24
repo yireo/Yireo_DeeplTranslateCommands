@@ -94,6 +94,10 @@ class CmsBlockTranslator
         $targetBlock = $existingBlock;
         if ($targetBlock === null) {
             $targetBlock = $this->blockFactory->create();
+            if (!$targetBlock instanceof Block) {
+                throw new LocalizedException(__('Unable to create CMS block.'));
+            }
+
             $targetBlock->setIdentifier($identifier);
             $targetBlock->setStoreId([$targetStoreId]);
             $targetBlock->setIsActive($sourceBlock->isActive());
