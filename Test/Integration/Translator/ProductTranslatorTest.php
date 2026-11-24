@@ -67,6 +67,23 @@ class ProductTranslatorTest extends TestCase
         $translator->translate(1, 0, 'EN', 'DE', false, new BufferedOutput());
     }
 
+    /**
+     * @magentoConfigFixture default/yireo_deepl_translate/product/attributes name
+     */
+    public function testRejectsSingleStoreMode(): void
+    {
+        $translationService = $this->createMock(TranslationService::class);
+        $translationService->expects($this->never())->method('translate');
+
+        $translator = Bootstrap::getObjectManager()->create(
+            ProductTranslator::class,
+            ['translationService' => $translationService]
+        );
+
+        $this->expectExceptionMessage('multiple store views');
+        $translator->translate(1, 1, 'EN', 'DE', false, new BufferedOutput());
+    }
+
     private function getStoreAttributeCodes(int $linkId, int $storeId): array
     {
         $objectManager = Bootstrap::getObjectManager();

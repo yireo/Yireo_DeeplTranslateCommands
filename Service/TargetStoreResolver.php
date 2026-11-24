@@ -8,6 +8,7 @@ use Magento\Framework\Exception\LocalizedException;
 use Magento\Store\Api\StoreRepositoryInterface;
 use Magento\Store\Model\ScopeInterface;
 use Magento\Store\Model\Store;
+use Magento\Store\Model\StoreManagerInterface;
 
 class TargetStoreResolver
 {
@@ -17,6 +18,7 @@ class TargetStoreResolver
         private readonly StoreRepositoryInterface $storeRepository,
         private readonly ScopeConfigInterface $scopeConfig,
         private readonly LocaleMapper $localeMapper,
+        private readonly StoreManagerInterface $storeManager,
     ) {
     }
 
@@ -28,6 +30,13 @@ class TargetStoreResolver
         if ($storeId === Store::DEFAULT_STORE_ID) {
             throw new LocalizedException(__(
                 'The admin store view can not be used as translation target, because it holds the source content.'
+            ));
+        }
+
+        if ($this->storeManager->hasSingleStore()) {
+            throw new LocalizedException(__(
+                'Translating requires multiple store views. With a single store view, Magento saves '
+                . 'store view values into the default scope, which would overwrite the source content.'
             ));
         }
 

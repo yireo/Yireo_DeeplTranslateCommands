@@ -18,15 +18,23 @@ class TargetStoreResolverTest extends TestCase
         $this->getResolver()->resolve('admin');
     }
 
+    public function testRejectsSingleStoreMode(): void
+    {
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('multiple store views');
+        $this->getResolver()->resolve('default');
+    }
+
     /**
+     * @magentoDataFixture Magento/Store/_files/core_fixturestore.php
      * @magentoConfigFixture default/general/locale/code en_US
-     * @magentoConfigFixture default_store general/locale/code en_US
+     * @magentoConfigFixture fixturestore_store general/locale/code en_US
      */
     public function testRejectsStoreWithSameLocale(): void
     {
         $this->expectException(LocalizedException::class);
         $this->expectExceptionMessage('same language');
-        $this->getResolver()->resolve('default');
+        $this->getResolver()->resolve('fixturestore');
     }
 
     /**

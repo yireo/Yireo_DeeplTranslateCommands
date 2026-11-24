@@ -8,6 +8,7 @@ use Magento\Catalog\Model\Product;
 use Magento\Catalog\Model\Product\Action as ProductAction;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Store\Model\Store;
+use Magento\Store\Model\StoreManagerInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Yireo\DeeplTranslateCommands\Config\Config;
 use Yireo\DeeplTranslateCommands\Console\OutputSanitizer;
@@ -24,6 +25,7 @@ class ProductTranslator
         private readonly TranslationService $translationService,
         private readonly Config $config,
         private readonly OutputSanitizer $outputSanitizer,
+        private readonly StoreManagerInterface $storeManager,
     ) {
     }
 
@@ -38,6 +40,10 @@ class ProductTranslator
     ): void {
         if ($targetStoreId === Store::DEFAULT_STORE_ID) {
             throw new LocalizedException(__('The admin store view can not be used as translation target.'));
+        }
+
+        if ($this->storeManager->hasSingleStore()) {
+            throw new LocalizedException(__('Translating requires multiple store views.'));
         }
 
         $attributes = $this->attributeFilter->filter(Product::ENTITY, $this->config->getProductAttributes());
