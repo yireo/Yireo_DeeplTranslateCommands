@@ -17,7 +17,7 @@ use Yireo\DeeplTranslateCommands\Translator\ProductTranslator;
 
 /**
  * @magentoAppArea adminhtml
- * @magentoDbIsolation enabled
+ * @magentoDbIsolation disabled
  */
 class ProductTranslatorTest extends TestCase
 {
@@ -51,21 +51,20 @@ class ProductTranslatorTest extends TestCase
     }
 
     /**
-     * @magentoDataFixture Magento/Catalog/_files/product_simple.php
      * @magentoConfigFixture default/yireo_deepl_translate/product/attributes name
      */
     public function testRejectsAdminStore(): void
     {
-        $objectManager = Bootstrap::getObjectManager();
-        $product = $objectManager->get(ProductRepositoryInterface::class)->get('simple');
-
         $translationService = $this->createMock(TranslationService::class);
         $translationService->expects($this->never())->method('translate');
 
-        $translator = $objectManager->create(ProductTranslator::class, ['translationService' => $translationService]);
+        $translator = Bootstrap::getObjectManager()->create(
+            ProductTranslator::class,
+            ['translationService' => $translationService]
+        );
 
         $this->expectExceptionMessage('admin store view');
-        $translator->translate((int)$product->getId(), 0, 'EN', 'DE', false, new BufferedOutput());
+        $translator->translate(1, 0, 'EN', 'DE', false, new BufferedOutput());
     }
 
     private function getStoreAttributeCodes(int $linkId, int $storeId): array

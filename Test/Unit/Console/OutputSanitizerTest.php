@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Yireo\DeeplTranslateCommands\Test\Unit\Console;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 use Yireo\DeeplTranslateCommands\Console\OutputSanitizer;
 
 class OutputSanitizerTest extends TestCase
@@ -15,7 +16,9 @@ class OutputSanitizerTest extends TestCase
 
     public function testEscapesConsoleFormatterTags(): void
     {
-        $this->assertSame('\<info>fake\</info>', (new OutputSanitizer())->sanitize('<info>fake</info>'));
+        $sanitized = (new OutputSanitizer())->sanitize('<info>fake</info>');
+
+        $this->assertSame('<info>fake</info>', (new OutputFormatter(true))->format($sanitized));
     }
 
     public function testStripsControlCharacters(): void
