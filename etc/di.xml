@@ -19,6 +19,16 @@
             <argument name="wysiwygValidator" xsi:type="object">DefaultWYSIWYGValidator</argument>
         </arguments>
     </type>
+    <type name="Yireo\DeeplTranslateCommands\Translator\ProductTranslator">
+        <arguments>
+            <argument name="productAction" xsi:type="object">Magento\Catalog\Model\Product\Action\Proxy</argument>
+        </arguments>
+    </type>
+    <type name="Yireo\DeeplTranslateCommands\Translator\CategoryTranslator">
+        <arguments>
+            <argument name="categoryResource" xsi:type="object">Magento\Catalog\Model\ResourceModel\Category\Proxy</argument>
+        </arguments>
+    </type>
     <type name="Magento\Config\Model\Config\TypePool">
         <arguments>
             <argument name="sensitive" xsi:type="array">
