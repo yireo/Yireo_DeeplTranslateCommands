@@ -9,7 +9,8 @@
         "magento/module-cms": "*",
         "magento/module-store": "*",
         "magento/module-eav": "*",
-        "deeplcom/deepl-php": "^1.0",
+        "magento/module-config": "*",
+        "deeplcom/deepl-php": "^1.11.1",
         "php": ">=8.2 <8.6"
     },
     "license": [

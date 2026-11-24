@@ -4,6 +4,7 @@
     "sequence": [
         "Magento_Catalog",
         "Magento_Cms",
+        "Magento_Config",
         "Magento_Store"
     ]
 }
