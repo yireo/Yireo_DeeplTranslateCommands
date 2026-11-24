@@ -14,4 +14,16 @@
             </argument>
         </arguments>
     </type>
+    <type name="Yireo\DeeplTranslateCommands\Service\ContentGuard">
+        <arguments>
+            <argument name="wysiwygValidator" xsi:type="object">DefaultWYSIWYGValidator</argument>
+        </arguments>
+    </type>
+    <type name="Magento\Config\Model\Config\TypePool">
+        <arguments>
+            <argument name="sensitive" xsi:type="array">
+                <item name="yireo_deepl_translate/general/api_key" xsi:type="string">1</item>
+            </argument>
+        </arguments>
+    </type>
 </config>

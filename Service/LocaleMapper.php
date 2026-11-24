@@ -49,6 +49,11 @@ class LocaleMapper
         'zh_Hant_TW' => 'ZH-HANT',
     ];
 
+    private const SOURCE_LANGUAGES = [
+        'AR', 'BG', 'CS', 'DA', 'DE', 'EL', 'EN', 'ES', 'ET', 'FI', 'FR', 'HU', 'ID', 'IT', 'JA',
+        'KO', 'LT', 'LV', 'NB', 'NL', 'PL', 'PT', 'RO', 'RU', 'SK', 'SL', 'SV', 'TR', 'UK', 'ZH',
+    ];
+
     public function mapLocaleToDeeplLanguage(string $magentoLocale): string
     {
         if (isset(self::REGIONAL_MAP[$magentoLocale])) {
@@ -80,6 +85,16 @@ class LocaleMapper
     public function mapLocaleToDeeplSourceLanguage(string $magentoLocale): string
     {
         $parts = explode('_', $magentoLocale);
-        return strtoupper($parts[0]);
+        $languageCode = strtoupper($parts[0]);
+
+        if (!in_array($languageCode, self::SOURCE_LANGUAGES, true)) {
+            throw new LocalizedException(__(
+                'Unsupported source locale "%1" for DeepL translation. Supported languages: %2',
+                $magentoLocale,
+                implode(', ', self::SOURCE_LANGUAGES)
+            ));
+        }
+
+        return $languageCode;
     }
 }

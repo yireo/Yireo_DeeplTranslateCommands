@@ -3,13 +3,17 @@ declare(strict_types=1);
 
 namespace Yireo\DeeplTranslateCommands\Translator;
 
-use Magento\Cms\Api\Data\PageInterfaceFactory;
 use Magento\Cms\Api\PageRepositoryInterface;
+use Magento\Cms\Api\Data\PageInterfaceFactory;
+use Magento\Cms\Model\Page;
 use Magento\Cms\Model\ResourceModel\Page\CollectionFactory as PageCollectionFactory;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\Store\Model\Store;
 use Symfony\Component\Console\Output\OutputInterface;
 use Yireo\DeeplTranslateCommands\Config\Config;
+use Yireo\DeeplTranslateCommands\Console\OutputSanitizer;
 use Yireo\DeeplTranslateCommands\Service\TranslationService;
+use Yireo\DeeplTranslateCommands\Source\CmsPageFields;
 
 class CmsPageTranslator
 {
@@ -17,8 +21,11 @@ class CmsPageTranslator
         private readonly PageRepositoryInterface $pageRepository,
         private readonly PageInterfaceFactory $pageFactory,
         private readonly PageCollectionFactory $pageCollectionFactory,
+        private readonly CmsPageFields $cmsPageFields,
+        private readonly FieldSelector $fieldSelector,
         private readonly TranslationService $translationService,
         private readonly Config $config,
+        private readonly OutputSanitizer $outputSanitizer,
     ) {
     }
 
@@ -31,59 +38,61 @@ class CmsPageTranslator
         OutputInterface $output,
         bool $force = false
     ): void {
-        $fields = $this->config->getCmsPageFields();
+        if ($targetStoreId === Store::DEFAULT_STORE_ID) {
+            throw new LocalizedException(__('The admin store view can not be used as translation target.'));
+        }
+
+        $fields = $this->cmsPageFields->filter($this->config->getCmsPageFields());
         if (empty($fields)) {
             throw new LocalizedException(__('No CMS page fields configured for translation.'));
         }
 
         $sourcePage = $this->pageRepository->getById($pageId);
-        $pageTitle = $sourcePage->getTitle() ?: 'Unknown';
-        $identifier = $sourcePage->getIdentifier();
+        if (!$sourcePage instanceof Page) {
+            throw new LocalizedException(__('Unable to load CMS page %1.', $pageId));
+        }
+
+        $identifier = (string)$sourcePage->getIdentifier();
 
         $output->writeln(sprintf(
             '%sTranslating CMS page "%s" (ID: %d) [%s → %s]',
             $dryRun ? '[DRY RUN] Would translate: ' : '',
-            $pageTitle,
+            $this->outputSanitizer->sanitize((string)($sourcePage->getTitle() ?: 'Unknown')),
             $pageId,
-            $sourceLanguage,
-            $targetLanguage
+            $this->outputSanitizer->sanitize($sourceLanguage),
+            $this->outputSanitizer->sanitize($targetLanguage)
         ));
 
+        $existingPage = $this->findExistingPage($identifier, $targetStoreId);
+        if ($existingPage !== null) {
+            $this->assertSafeTarget($existingPage, $pageId);
+        }
+
+        $fields = $this->fieldSelector->select($fields, $sourcePage, $existingPage, $force, $output);
+
         if ($dryRun) {
-            $existingPage = $this->findExistingPage($identifier, $targetStoreId);
-            $existingTarget = $existingPage
-                ? $this->pageRepository->getById($existingPage->getId())
-                : null;
-
-            $totalChars = 0;
-            foreach ($fields as $field) {
-                $value = (string)$sourcePage->getData($field);
-                if (empty(trim($value))) {
-                    continue;
-                }
-
-                if (!$force && $existingTarget) {
-                    $targetTrimmed = trim((string)$existingTarget->getData($field));
-                    $sourceTrimmed = trim($value);
-                    if ($targetTrimmed !== '' && $targetTrimmed !== $sourceTrimmed) {
-                        $output->writeln(sprintf('  - %s: skipped (already translated)', $field));
-                        continue;
-                    }
-                }
-
-                $charCount = mb_strlen($value);
-                $totalChars += $charCount;
-                $output->writeln(sprintf('  - %s: %d chars', $field, $charCount));
-            }
-            $output->writeln(sprintf('  Total characters: %d', $totalChars));
+            $this->fieldSelector->reportDryRun($fields, $sourcePage, $output);
             return;
         }
 
-        $existingPage = $this->findExistingPage($identifier, $targetStoreId);
+        if (empty($fields)) {
+            $output->writeln('  All fields already translated. Skipping CMS page.');
+            return;
+        }
 
-        if ($existingPage) {
-            $targetPage = $this->pageRepository->getById($existingPage->getId());
-        } else {
+        $translations = [];
+        foreach ($fields as $field => $isHtml) {
+            $translations[$field] = $this->translationService->translate(
+                (string)$sourcePage->getData($field),
+                $sourceLanguage,
+                $targetLanguage,
+                $isHtml
+            );
+            $output->writeln(sprintf('  - %s: translated', $this->outputSanitizer->sanitize($field)));
+        }
+
+        $targetPage = $existingPage;
+        if ($targetPage === null) {
             $targetPage = $this->pageFactory->create();
             $targetPage->setIdentifier($identifier);
             $targetPage->setStoreId([$targetStoreId]);
@@ -91,64 +100,50 @@ class CmsPageTranslator
             $targetPage->setPageLayout($sourcePage->getPageLayout());
         }
 
-        if (!$force && $existingPage) {
-            $fieldsToTranslate = [];
-            $skippedFields = [];
-
-            foreach ($fields as $field) {
-                $targetValue = $targetPage->getData($field);
-                $sourceValue = $sourcePage->getData($field);
-
-                $targetTrimmed = trim((string)$targetValue);
-                $sourceTrimmed = trim((string)$sourceValue);
-
-                if ($targetTrimmed === '' || $targetTrimmed === $sourceTrimmed) {
-                    $fieldsToTranslate[] = $field;
-                } else {
-                    $skippedFields[] = $field;
-                }
-            }
-
-            foreach ($skippedFields as $field) {
-                $output->writeln(sprintf('  - %s: skipped (already translated)', $field));
-            }
-
-            if (empty($fieldsToTranslate)) {
-                $output->writeln('  All fields already translated. Skipping CMS page.');
-                return;
-            }
-
-            $fields = $fieldsToTranslate;
+        foreach ($translations as $field => $translation) {
+            $targetPage->setData($field, $translation);
         }
 
-        foreach ($fields as $field) {
-            $sourceValue = (string)$sourcePage->getData($field);
-            if (empty(trim($sourceValue))) {
-                continue;
-            }
-
-            $translatedValue = $this->translationService->translate($sourceValue, $sourceLanguage, $targetLanguage);
-            $targetPage->setData($field, $translatedValue);
-            $output->writeln(sprintf('  - %s: translated', $field));
-        }
-
-        $targetPage->setStoreId([$targetStoreId]);
         $this->pageRepository->save($targetPage);
-        $output->writeln(sprintf('  CMS page "%s" saved for store %d.', $identifier, $targetStoreId));
+        $output->writeln(sprintf(
+            '  CMS page "%s" saved for store %d.',
+            $this->outputSanitizer->sanitize($identifier),
+            $targetStoreId
+        ));
     }
 
-    private function findExistingPage(string $identifier, int $storeId): ?\Magento\Cms\Api\Data\PageInterface
+    private function assertSafeTarget(Page $existingPage, int $sourcePageId): void
+    {
+        if ((int)$existingPage->getId() === $sourcePageId) {
+            throw new LocalizedException(__(
+                'CMS page %1 is itself assigned to the target store view. Not overwriting the source content.',
+                $sourcePageId
+            ));
+        }
+
+        $storeIds = array_map('intval', (array)$existingPage->getData('store_id'));
+        if (count($storeIds) !== 1) {
+            throw new LocalizedException(__(
+                'CMS page %1 is assigned to multiple store views. Not overwriting it.',
+                $existingPage->getId()
+            ));
+        }
+    }
+
+    private function findExistingPage(string $identifier, int $storeId): ?Page
     {
         $collection = $this->pageCollectionFactory->create();
         $collection->addFieldToFilter('identifier', $identifier);
         $collection->addStoreFilter($storeId, false);
         $collection->setPageSize(1);
 
-        $page = $collection->getFirstItem();
-        if ($page && $page->getId()) {
-            return $page;
+        $item = $collection->getFirstItem();
+        if (!$item->getId()) {
+            return null;
         }
 
-        return null;
+        $page = $this->pageRepository->getById((int)$item->getId());
+
+        return $page instanceof Page ? $page : null;
     }
 }

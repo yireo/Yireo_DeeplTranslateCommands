@@ -4,18 +4,28 @@ declare(strict_types=1);
 namespace Yireo\DeeplTranslateCommands\Translator;
 
 use Magento\Catalog\Api\CategoryRepositoryInterface;
+use Magento\Catalog\Model\Category;
+use Magento\Catalog\Model\ResourceModel\Category as CategoryResource;
+use Magento\Framework\Event\ManagerInterface as EventManager;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Store\Model\Store;
 use Symfony\Component\Console\Output\OutputInterface;
 use Yireo\DeeplTranslateCommands\Config\Config;
+use Yireo\DeeplTranslateCommands\Console\OutputSanitizer;
+use Yireo\DeeplTranslateCommands\Service\AttributeFilter;
 use Yireo\DeeplTranslateCommands\Service\TranslationService;
 
 class CategoryTranslator
 {
     public function __construct(
         private readonly CategoryRepositoryInterface $categoryRepository,
+        private readonly CategoryResource $categoryResource,
+        private readonly EventManager $eventManager,
+        private readonly AttributeFilter $attributeFilter,
+        private readonly FieldSelector $fieldSelector,
         private readonly TranslationService $translationService,
         private readonly Config $config,
+        private readonly OutputSanitizer $outputSanitizer,
     ) {
     }
 
@@ -28,92 +38,60 @@ class CategoryTranslator
         OutputInterface $output,
         bool $force = false
     ): void {
-        $attributes = $this->config->getCategoryAttributes();
+        if ($targetStoreId === Store::DEFAULT_STORE_ID) {
+            throw new LocalizedException(__('The admin store view can not be used as translation target.'));
+        }
+
+        $attributes = $this->attributeFilter->filter(Category::ENTITY, $this->config->getCategoryAttributes());
         if (empty($attributes)) {
-            throw new LocalizedException(__('No category attributes configured for translation.'));
+            throw new LocalizedException(__('No translatable category attributes configured for translation.'));
         }
 
         $defaultCategory = $this->categoryRepository->get($categoryId, Store::DEFAULT_STORE_ID);
         $storeCategory = $this->categoryRepository->get($categoryId, $targetStoreId);
-        $categoryName = $defaultCategory->getName() ?: 'Unknown';
+        if (!$defaultCategory instanceof Category || !$storeCategory instanceof Category) {
+            throw new LocalizedException(__('Unable to load category %1.', $categoryId));
+        }
 
         $output->writeln(sprintf(
             '%sTranslating category "%s" (ID: %d) [%s → %s]',
             $dryRun ? '[DRY RUN] Would translate: ' : '',
-            $categoryName,
+            $this->outputSanitizer->sanitize((string)($defaultCategory->getName() ?: 'Unknown')),
             $categoryId,
-            $sourceLanguage,
-            $targetLanguage
+            $this->outputSanitizer->sanitize($sourceLanguage),
+            $this->outputSanitizer->sanitize($targetLanguage)
         ));
 
+        $attributes = $this->fieldSelector->select($attributes, $defaultCategory, $storeCategory, $force, $output);
+
         if ($dryRun) {
-            $totalChars = 0;
-            foreach ($attributes as $attributeCode) {
-                $value = (string)$defaultCategory->getData($attributeCode);
-                if (empty(trim($value))) {
-                    continue;
-                }
-
-                if (!$force) {
-                    $targetTrimmed = trim((string)$storeCategory->getData($attributeCode));
-                    $defaultTrimmed = trim($value);
-                    if ($targetTrimmed !== '' && $targetTrimmed !== $defaultTrimmed) {
-                        $output->writeln(sprintf('  - %s: skipped (already translated)', $attributeCode));
-                        continue;
-                    }
-                }
-
-                $charCount = mb_strlen($value);
-                $totalChars += $charCount;
-                $output->writeln(sprintf('  - %s: %d chars', $attributeCode, $charCount));
-            }
-            $output->writeln(sprintf('  Total characters: %d', $totalChars));
+            $this->fieldSelector->reportDryRun($attributes, $defaultCategory, $output);
             return;
         }
 
-        if (!$force) {
-            $attributesToTranslate = [];
-            $skippedAttributes = [];
-
-            foreach ($attributes as $attributeCode) {
-                $targetValue = $storeCategory->getData($attributeCode);
-                $defaultValue = $defaultCategory->getData($attributeCode);
-
-                $targetTrimmed = trim((string)$targetValue);
-                $defaultTrimmed = trim((string)$defaultValue);
-
-                if ($targetTrimmed === '' || $targetTrimmed === $defaultTrimmed) {
-                    $attributesToTranslate[] = $attributeCode;
-                } else {
-                    $skippedAttributes[] = $attributeCode;
-                }
-            }
-
-            foreach ($skippedAttributes as $attributeCode) {
-                $output->writeln(sprintf('  - %s: skipped (already translated)', $attributeCode));
-            }
-
-            if (empty($attributesToTranslate)) {
-                $output->writeln('  All attributes already translated. Skipping category.');
-                return;
-            }
-
-            $attributes = $attributesToTranslate;
+        if (empty($attributes)) {
+            $output->writeln('  All attributes already translated. Skipping category.');
+            return;
         }
 
-        foreach ($attributes as $attributeCode) {
-            $sourceValue = (string)$defaultCategory->getData($attributeCode);
-            if (empty(trim($sourceValue))) {
-                continue;
-            }
-
-            $translatedValue = $this->translationService->translate($sourceValue, $sourceLanguage, $targetLanguage);
-            $storeCategory->setData($attributeCode, $translatedValue);
-            $output->writeln(sprintf('  - %s: translated', $attributeCode));
+        $translations = [];
+        foreach ($attributes as $attributeCode => $isHtml) {
+            $translations[$attributeCode] = $this->translationService->translate(
+                (string)$defaultCategory->getData($attributeCode),
+                $sourceLanguage,
+                $targetLanguage,
+                $isHtml
+            );
+            $output->writeln(sprintf('  - %s: translated', $this->outputSanitizer->sanitize($attributeCode)));
         }
 
         $storeCategory->setStoreId($targetStoreId);
-        $this->categoryRepository->save($storeCategory);
+        foreach ($translations as $attributeCode => $translation) {
+            $storeCategory->setData($attributeCode, $translation);
+            $this->categoryResource->saveAttribute($storeCategory, $attributeCode);
+        }
+
+        $this->eventManager->dispatch('clean_cache_by_tags', ['object' => $storeCategory]);
         $output->writeln(sprintf('  Category %d saved.', $categoryId));
     }
 }

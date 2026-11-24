@@ -4,18 +4,26 @@ declare(strict_types=1);
 namespace Yireo\DeeplTranslateCommands\Translator;
 
 use Magento\Catalog\Api\ProductRepositoryInterface;
+use Magento\Catalog\Model\Product;
+use Magento\Catalog\Model\Product\Action as ProductAction;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Store\Model\Store;
 use Symfony\Component\Console\Output\OutputInterface;
 use Yireo\DeeplTranslateCommands\Config\Config;
+use Yireo\DeeplTranslateCommands\Console\OutputSanitizer;
+use Yireo\DeeplTranslateCommands\Service\AttributeFilter;
 use Yireo\DeeplTranslateCommands\Service\TranslationService;
 
 class ProductTranslator
 {
     public function __construct(
         private readonly ProductRepositoryInterface $productRepository,
+        private readonly ProductAction $productAction,
+        private readonly AttributeFilter $attributeFilter,
+        private readonly FieldSelector $fieldSelector,
         private readonly TranslationService $translationService,
         private readonly Config $config,
+        private readonly OutputSanitizer $outputSanitizer,
     ) {
     }
 
@@ -28,98 +36,54 @@ class ProductTranslator
         OutputInterface $output,
         bool $force = false
     ): void {
-        $attributes = $this->config->getProductAttributes();
+        if ($targetStoreId === Store::DEFAULT_STORE_ID) {
+            throw new LocalizedException(__('The admin store view can not be used as translation target.'));
+        }
+
+        $attributes = $this->attributeFilter->filter(Product::ENTITY, $this->config->getProductAttributes());
         if (empty($attributes)) {
-            throw new LocalizedException(__('No product attributes configured for translation.'));
+            throw new LocalizedException(__('No translatable product attributes configured for translation.'));
         }
 
         $defaultProduct = $this->productRepository->getById($productId, false, Store::DEFAULT_STORE_ID);
         $storeProduct = $this->productRepository->getById($productId, false, $targetStoreId);
-        $productName = $defaultProduct->getName() ?: 'Unknown';
+        if (!$defaultProduct instanceof Product || !$storeProduct instanceof Product) {
+            throw new LocalizedException(__('Unable to load product %1.', $productId));
+        }
 
         $output->writeln(sprintf(
             '%sTranslating product "%s" (ID: %d) [%s → %s]',
             $dryRun ? '[DRY RUN] Would translate: ' : '',
-            $productName,
+            $this->outputSanitizer->sanitize((string)($defaultProduct->getName() ?: 'Unknown')),
             $productId,
-            $sourceLanguage,
-            $targetLanguage
+            $this->outputSanitizer->sanitize($sourceLanguage),
+            $this->outputSanitizer->sanitize($targetLanguage)
         ));
 
+        $attributes = $this->fieldSelector->select($attributes, $defaultProduct, $storeProduct, $force, $output);
+
         if ($dryRun) {
-            $totalChars = 0;
-            foreach ($attributes as $attributeCode) {
-                $value = (string)$defaultProduct->getData($attributeCode);
-                if (empty(trim($value))) {
-                    continue;
-                }
-
-                if (!$force) {
-                    $targetTrimmed = trim((string)$storeProduct->getData($attributeCode));
-                    $defaultTrimmed = trim($value);
-                    if ($targetTrimmed !== '' && $targetTrimmed !== $defaultTrimmed) {
-                        $output->writeln(sprintf('  - %s: skipped (already translated)', $attributeCode));
-                        continue;
-                    }
-                }
-
-                $charCount = mb_strlen($value);
-                $totalChars += $charCount;
-                $output->writeln(sprintf('  - %s: %d chars', $attributeCode, $charCount));
-            }
-            $output->writeln(sprintf('  Total characters: %d', $totalChars));
+            $this->fieldSelector->reportDryRun($attributes, $defaultProduct, $output);
             return;
         }
 
-        if (!$force) {
-            $attributesToTranslate = [];
-            $skippedAttributes = [];
-
-            foreach ($attributes as $attributeCode) {
-                $targetValue = $storeProduct->getData($attributeCode);
-                $defaultValue = $defaultProduct->getData($attributeCode);
-
-                $targetTrimmed = trim((string)$targetValue);
-                $defaultTrimmed = trim((string)$defaultValue);
-
-                if ($targetTrimmed === '' || $targetTrimmed === $defaultTrimmed) {
-                    $attributesToTranslate[] = $attributeCode;
-                } else {
-                    $skippedAttributes[] = $attributeCode;
-                }
-            }
-
-            foreach ($skippedAttributes as $attributeCode) {
-                $output->writeln(sprintf('  - %s: skipped (already translated)', $attributeCode));
-            }
-
-            if (empty($attributesToTranslate)) {
-                $output->writeln('  All attributes already translated. Skipping product.');
-                return;
-            }
-
-            $attributes = $attributesToTranslate;
+        if (empty($attributes)) {
+            $output->writeln('  All attributes already translated. Skipping product.');
+            return;
         }
 
-        foreach ($attributes as $attributeCode) {
-            $attributeValue = $defaultProduct->getData($attributeCode);
-            if (is_array($attributeValue)) {
-                $output->writeln(sprintf('  - %s is an array', $attributeCode));
-                continue;
-            }
-
-            $sourceValue = (string)$attributeValue;
-            if (empty(trim($sourceValue))) {
-                continue;
-            }
-
-            $translatedValue = $this->translationService->translate($sourceValue, $sourceLanguage, $targetLanguage);
-            $storeProduct->setData($attributeCode, $translatedValue);
-            $output->writeln(sprintf('  - %s: translated', $attributeCode));
+        $translations = [];
+        foreach ($attributes as $attributeCode => $isHtml) {
+            $translations[$attributeCode] = $this->translationService->translate(
+                (string)$defaultProduct->getData($attributeCode),
+                $sourceLanguage,
+                $targetLanguage,
+                $isHtml
+            );
+            $output->writeln(sprintf('  - %s: translated', $this->outputSanitizer->sanitize($attributeCode)));
         }
 
-        $storeProduct->setStoreId($targetStoreId);
-        $this->productRepository->save($storeProduct);
+        $this->productAction->updateAttributes([$productId], $translations, $targetStoreId);
         $output->writeln(sprintf('  Product %d saved.', $productId));
     }
 }

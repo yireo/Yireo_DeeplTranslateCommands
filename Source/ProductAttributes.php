@@ -3,38 +3,25 @@ declare(strict_types=1);
 
 namespace Yireo\DeeplTranslateCommands\Source;
 
-use Magento\Eav\Model\Config as EavConfig;
 use Magento\Catalog\Model\Product;
 use Magento\Framework\Data\OptionSourceInterface;
+use Yireo\DeeplTranslateCommands\Service\AttributeFilter;
 
 class ProductAttributes implements OptionSourceInterface
 {
     public function __construct(
-        private readonly EavConfig $eavConfig,
+        private readonly AttributeFilter $attributeFilter,
     ) {
     }
 
     public function toOptionArray(): array
     {
-        $entityType = $this->eavConfig->getEntityType(Product::ENTITY);
-        $attributes = $this->eavConfig->getEntityAttributes($entityType->getEntityTypeId());
         $options = [];
-
-        foreach ($attributes as $attribute) {
-            $frontendInput = $attribute->getFrontendInput();
-            if (!in_array($frontendInput, ['text', 'textarea'])) {
-                continue;
-            }
-
-            if (!$attribute->getIsVisible()) {
-                continue;
-            }
-
+        foreach ($this->attributeFilter->getAllowedAttributes(Product::ENTITY) as $code => $attribute) {
+            $label = (string)$attribute->getDefaultFrontendLabel();
             $options[] = [
-                'value' => $attribute->getAttributeCode(),
-                'label' => $attribute->getDefaultFrontendLabel()
-                    ? $attribute->getDefaultFrontendLabel() . ' (' . $attribute->getAttributeCode() . ')'
-                    : $attribute->getAttributeCode(),
+                'value' => $code,
+                'label' => $label !== '' ? $label . ' (' . $code . ')' : $code,
             ];
         }
 

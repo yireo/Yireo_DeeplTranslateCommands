@@ -5,11 +5,15 @@ namespace Yireo\DeeplTranslateCommands\Translator;
 
 use Magento\Cms\Api\BlockRepositoryInterface;
 use Magento\Cms\Api\Data\BlockInterfaceFactory;
+use Magento\Cms\Model\Block;
 use Magento\Cms\Model\ResourceModel\Block\CollectionFactory as BlockCollectionFactory;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\Store\Model\Store;
 use Symfony\Component\Console\Output\OutputInterface;
 use Yireo\DeeplTranslateCommands\Config\Config;
+use Yireo\DeeplTranslateCommands\Console\OutputSanitizer;
 use Yireo\DeeplTranslateCommands\Service\TranslationService;
+use Yireo\DeeplTranslateCommands\Source\CmsBlockFields;
 
 class CmsBlockTranslator
 {
@@ -17,8 +21,11 @@ class CmsBlockTranslator
         private readonly BlockRepositoryInterface $blockRepository,
         private readonly BlockInterfaceFactory $blockFactory,
         private readonly BlockCollectionFactory $blockCollectionFactory,
+        private readonly CmsBlockFields $cmsBlockFields,
+        private readonly FieldSelector $fieldSelector,
         private readonly TranslationService $translationService,
         private readonly Config $config,
+        private readonly OutputSanitizer $outputSanitizer,
     ) {
     }
 
@@ -31,123 +38,111 @@ class CmsBlockTranslator
         OutputInterface $output,
         bool $force = false
     ): void {
-        $fields = $this->config->getCmsBlockFields();
+        if ($targetStoreId === Store::DEFAULT_STORE_ID) {
+            throw new LocalizedException(__('The admin store view can not be used as translation target.'));
+        }
+
+        $fields = $this->cmsBlockFields->filter($this->config->getCmsBlockFields());
         if (empty($fields)) {
             throw new LocalizedException(__('No CMS block fields configured for translation.'));
         }
 
         $sourceBlock = $this->blockRepository->getById($blockId);
-        $blockTitle = $sourceBlock->getTitle() ?: 'Unknown';
-        $identifier = $sourceBlock->getIdentifier();
+        if (!$sourceBlock instanceof Block) {
+            throw new LocalizedException(__('Unable to load CMS block %1.', $blockId));
+        }
+
+        $identifier = (string)$sourceBlock->getIdentifier();
 
         $output->writeln(sprintf(
             '%sTranslating CMS block "%s" (ID: %d) [%s → %s]',
             $dryRun ? '[DRY RUN] Would translate: ' : '',
-            $blockTitle,
+            $this->outputSanitizer->sanitize((string)($sourceBlock->getTitle() ?: 'Unknown')),
             $blockId,
-            $sourceLanguage,
-            $targetLanguage
+            $this->outputSanitizer->sanitize($sourceLanguage),
+            $this->outputSanitizer->sanitize($targetLanguage)
         ));
 
+        $existingBlock = $this->findExistingBlock($identifier, $targetStoreId);
+        if ($existingBlock !== null) {
+            $this->assertSafeTarget($existingBlock, $blockId);
+        }
+
+        $fields = $this->fieldSelector->select($fields, $sourceBlock, $existingBlock, $force, $output);
+
         if ($dryRun) {
-            $existingBlock = $this->findExistingBlock($identifier, $targetStoreId);
-            $existingTarget = $existingBlock
-                ? $this->blockRepository->getById($existingBlock->getId())
-                : null;
-
-            $totalChars = 0;
-            foreach ($fields as $field) {
-                $value = (string)$sourceBlock->getData($field);
-                if (empty(trim($value))) {
-                    continue;
-                }
-
-                if (!$force && $existingTarget) {
-                    $targetTrimmed = trim((string)$existingTarget->getData($field));
-                    $sourceTrimmed = trim($value);
-                    if ($targetTrimmed !== '' && $targetTrimmed !== $sourceTrimmed) {
-                        $output->writeln(sprintf('  - %s: skipped (already translated)', $field));
-                        continue;
-                    }
-                }
-
-                $charCount = mb_strlen($value);
-                $totalChars += $charCount;
-                $output->writeln(sprintf('  - %s: %d chars', $field, $charCount));
-            }
-            $output->writeln(sprintf('  Total characters: %d', $totalChars));
+            $this->fieldSelector->reportDryRun($fields, $sourceBlock, $output);
             return;
         }
 
-        $existingBlock = $this->findExistingBlock($identifier, $targetStoreId);
+        if (empty($fields)) {
+            $output->writeln('  All fields already translated. Skipping CMS block.');
+            return;
+        }
 
-        if ($existingBlock) {
-            $targetBlock = $this->blockRepository->getById($existingBlock->getId());
-        } else {
+        $translations = [];
+        foreach ($fields as $field => $isHtml) {
+            $translations[$field] = $this->translationService->translate(
+                (string)$sourceBlock->getData($field),
+                $sourceLanguage,
+                $targetLanguage,
+                $isHtml
+            );
+            $output->writeln(sprintf('  - %s: translated', $this->outputSanitizer->sanitize($field)));
+        }
+
+        $targetBlock = $existingBlock;
+        if ($targetBlock === null) {
             $targetBlock = $this->blockFactory->create();
             $targetBlock->setIdentifier($identifier);
             $targetBlock->setStoreId([$targetStoreId]);
             $targetBlock->setIsActive($sourceBlock->isActive());
         }
 
-        if (!$force && $existingBlock) {
-            $fieldsToTranslate = [];
-            $skippedFields = [];
-
-            foreach ($fields as $field) {
-                $targetValue = $targetBlock->getData($field);
-                $sourceValue = $sourceBlock->getData($field);
-
-                $targetTrimmed = trim((string)$targetValue);
-                $sourceTrimmed = trim((string)$sourceValue);
-
-                if ($targetTrimmed === '' || $targetTrimmed === $sourceTrimmed) {
-                    $fieldsToTranslate[] = $field;
-                } else {
-                    $skippedFields[] = $field;
-                }
-            }
-
-            foreach ($skippedFields as $field) {
-                $output->writeln(sprintf('  - %s: skipped (already translated)', $field));
-            }
-
-            if (empty($fieldsToTranslate)) {
-                $output->writeln('  All fields already translated. Skipping CMS block.');
-                return;
-            }
-
-            $fields = $fieldsToTranslate;
+        foreach ($translations as $field => $translation) {
+            $targetBlock->setData($field, $translation);
         }
 
-        foreach ($fields as $field) {
-            $sourceValue = (string)$sourceBlock->getData($field);
-            if (empty(trim($sourceValue))) {
-                continue;
-            }
-
-            $translatedValue = $this->translationService->translate($sourceValue, $sourceLanguage, $targetLanguage);
-            $targetBlock->setData($field, $translatedValue);
-            $output->writeln(sprintf('  - %s: translated', $field));
-        }
-
-        $targetBlock->setStoreId([$targetStoreId]);
         $this->blockRepository->save($targetBlock);
-        $output->writeln(sprintf('  CMS block "%s" saved for store %d.', $identifier, $targetStoreId));
+        $output->writeln(sprintf(
+            '  CMS block "%s" saved for store %d.',
+            $this->outputSanitizer->sanitize($identifier),
+            $targetStoreId
+        ));
     }
 
-    private function findExistingBlock(string $identifier, int $storeId): ?\Magento\Cms\Api\Data\BlockInterface
+    private function assertSafeTarget(Block $existingBlock, int $sourceBlockId): void
+    {
+        if ((int)$existingBlock->getId() === $sourceBlockId) {
+            throw new LocalizedException(__(
+                'CMS block %1 is itself assigned to the target store view. Not overwriting the source content.',
+                $sourceBlockId
+            ));
+        }
+
+        $storeIds = array_map('intval', (array)$existingBlock->getData('store_id'));
+        if (count($storeIds) !== 1) {
+            throw new LocalizedException(__(
+                'CMS block %1 is assigned to multiple store views. Not overwriting it.',
+                $existingBlock->getId()
+            ));
+        }
+    }
+
+    private function findExistingBlock(string $identifier, int $storeId): ?Block
     {
         $collection = $this->blockCollectionFactory->create();
         $collection->addFieldToFilter('identifier', $identifier);
         $collection->addStoreFilter($storeId, false);
         $collection->setPageSize(1);
 
-        $block = $collection->getFirstItem();
-        if ($block && $block->getId()) {
-            return $block;
+        $item = $collection->getFirstItem();
+        if (!$item->getId()) {
+            return null;
         }
 
-        return null;
+        $block = $this->blockRepository->getById((int)$item->getId());
+
+        return $block instanceof Block ? $block : null;
     }
 }
