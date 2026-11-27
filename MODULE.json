@@ -10,5 +10,67 @@
         "Magento_Store"
     ],
     "phpcs_severity": "7",
-    "phpstan_level": "5"
+    "phpstan_level": "5",
+    "php_versions": [
+        "8.1",
+        "8.2",
+        "8.3",
+        "8.4"
+    ],
+    "skip_magento_versions": [],
+    "skip_css_utils": false,
+    "modules": [
+        "Magento_AdminNotification",
+        "Magento_Backend",
+        "Magento_Catalog",
+        "Magento_Cms",
+        "Magento_Config",
+        "Magento_Csp",
+        "Magento_Customer",
+        "Magento_Directory",
+        "Magento_Eav",
+        "Magento_Indexer",
+        "Magento_MediaGalleryUiApi",
+        "Magento_Store",
+        "Magento_Theme",
+        "Magento_Variable"
+    ],
+    "components": [],
+    "config": [
+        {
+            "path": "yireo_deepl_translate/general/enabled",
+            "label": "General > Enabled",
+            "description": ""
+        },
+        {
+            "path": "yireo_deepl_translate/general/api_key",
+            "label": "General > DeepL API Key",
+            "description": ""
+        },
+        {
+            "path": "yireo_deepl_translate/product/attributes",
+            "label": "Product Translation > Product Attributes to Translate",
+            "description": ""
+        },
+        {
+            "path": "yireo_deepl_translate/category/attributes",
+            "label": "Category Translation > Category Attributes to Translate",
+            "description": ""
+        },
+        {
+            "path": "yireo_deepl_translate/cms_page/fields",
+            "label": "CMS Page Translation > CMS Page Fields to Translate",
+            "description": ""
+        },
+        {
+            "path": "yireo_deepl_translate/cms_block/fields",
+            "label": "CMS Block Translation > CMS Block Fields to Translate",
+            "description": ""
+        }
+    ],
+    "tests": {
+        "unit": 40,
+        "integration": 17,
+        "functional": 0
+    }
 }
